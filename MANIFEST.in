@@ -1,0 +1,3 @@
+include tox.ini
+include docs/changelog.md
+recursive-include tests *.py

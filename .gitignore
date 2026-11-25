@@ -1,0 +1,11 @@
+.venv/
+.tox/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.build/
+build/
+dist/
+release-bundle/
+uv.lock
