@@ -1,0 +1,42 @@
+[build-system]
+requires = ["setuptools>=80"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pylint-explicit-return"
+version = "0.1.0.dev0"
+description = "A Pylint plugin for requiring explicit returns"
+requires-python = ">=3.11"
+authors = [{name = "Nicholas Hairs", email = "info+pylint-explicit-return@nicholashairs.com"}]
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENCE"]
+dependencies = ["pylint>=4.1.4,<5"]
+
+[project.urls]
+GitHub = "https://github.com/nhairs/pylint-explicit-return"
+
+[dependency-groups]
+test = ["pytest>=8"]
+dev = [
+    {include-group = "test"},
+    "black",
+    "pyrefly",
+    "validate-pyproject[all]",
+    "tox>=4",
+    "tox-uv",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.black]
+line-length = 100
+
+[tool.pylint.format]
+max-line-length = 100
+
+[tool.pylint.messages_control]
+disable = ["useless-return"]
+
+[tool.nopt]
