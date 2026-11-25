@@ -7,7 +7,7 @@ name = "pylint-explicit-return"
 version = "0.1.0.dev0"
 description = "A Pylint plugin for requiring explicit returns"
 requires-python = ">=3.11"
-authors = [{name = "Nicholas Hairs"}]
+authors = [{name = "Nicholas Hairs", email = "info+pylint-explicit-return@nicholashairs.com"}]
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENCE"]
