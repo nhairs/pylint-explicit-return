@@ -48,6 +48,8 @@ def test_function_scopes(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
         """
+        from collections.abc import Callable
+
         def test_example() -> None:  # missing
             assert True
 
@@ -63,8 +65,8 @@ def test_function_scopes(tmp_path: Path) -> None:
                 pass
             return
 
-        def make_callback(flag):
-            def callback():  # missing
+        def make_callback(flag: bool) -> Callable[[], int | None]:
+            def callback() -> int | None:  # missing
                 if flag:
                     return 1
             return callback
@@ -133,6 +135,13 @@ def test_return_and_raise_paths(tmp_path: Path) -> None:
 
         def annotated_fallthrough() -> "NoReturn":  # missing
             pass
+
+        def assert_can_be_optimized_out() -> None:  # missing
+            assert False
+
+        def explicit_exit_after_assert() -> None:
+            assert False
+            return
         """,
     )
     return
@@ -220,6 +229,8 @@ def test_exception_paths(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
         """
+        from collections.abc import Callable
+
         def catches_own_raise():  # missing
             try:
                 raise ValueError
@@ -232,7 +243,7 @@ def test_exception_paths(tmp_path: Path) -> None:
             except ValueError:
                 raise
 
-        def return_expression_might_raise(f):  # missing
+        def return_expression_might_raise(f: Callable[[], int]) -> int | None:  # missing
             try:
                 return f()
             except Exception:
@@ -261,13 +272,13 @@ def test_exception_paths(tmp_path: Path) -> None:
             else:
                 return
 
-        def finally_preserves_return(action):
+        def finally_preserves_return(action: Callable[[], None]) -> int:
             try:
                 return 1
             finally:
                 action()
 
-        def finally_overrides_fallthrough(action):
+        def finally_overrides_fallthrough(action: Callable[[], None]) -> None:
             try:
                 action()
             finally:
@@ -313,7 +324,11 @@ def test_exception_during_handler_selection(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
         """
-        def broken_selector_can_fall_through(exception_type):  # missing
+        from collections.abc import Callable
+
+        ExceptionSelector = Callable[[], type[BaseException]]
+
+        def broken_selector_can_fall_through(exception_type: ExceptionSelector) -> None:  # missing
             try:
                 try:
                     raise ValueError
@@ -324,7 +339,7 @@ def test_exception_during_handler_selection(tmp_path: Path) -> None:
             except LookupError:
                 pass
 
-        def broken_selector_can_escape(exception_type):
+        def broken_selector_can_escape(exception_type: ExceptionSelector) -> None:
             try:
                 try:
                     raise ValueError
@@ -348,30 +363,90 @@ def test_exception_during_handler_selection(tmp_path: Path) -> None:
     return
 
 
+def test_exception_paths_from_literal_iteration(tmp_path: Path) -> None:
+    _check_source(
+        tmp_path,
+        """
+        from collections.abc import Callable
+
+        def literal_loop_returns() -> int:
+            try:
+                for _ in (1,):
+                    return 1
+            except ValueError:
+                pass
+
+        def literal_loop_exhausts() -> None:
+            try:
+                for _ in ():
+                    pass
+                else:
+                    return
+            except ValueError:
+                pass
+
+        def tuple_element_can_raise(load: Callable[[], int]) -> int | None:  # missing
+            try:
+                for _ in (load(),):
+                    return 1
+            except ValueError:
+                pass
+
+        def unpacking_can_raise() -> None:  # missing
+            try:
+                for (first, second) in (1,):
+                    return
+            except TypeError:
+                pass
+        """,
+    )
+    return
+
+
 def test_with_and_match(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
         """
-        def with_return(manager):
+        from collections.abc import Callable
+        from contextlib import AbstractContextManager as ContextManager
+
+        def with_return(manager: ContextManager[object]) -> int:
             with manager:
                 return 1
 
-        def suppression_can_skip_return(manager, action):  # missing
+        def suppression_can_skip_return(  # missing
+            manager: ContextManager[object], action: Callable[[], None]
+        ) -> None:
             with manager:
                 action()
                 return
 
-        def suppression_can_skip_body_assignment(manager):  # missing
+        def suppression_can_skip_body_assignment(  # missing
+            manager: ContextManager[tuple[object, ...]]
+        ) -> None:
             with manager as (first, second):
                 return
 
-        def outer_manager_can_suppress_inner_entry(outer, inner):  # missing
+        def outer_manager_can_suppress_inner_entry(  # missing
+            outer: ContextManager[object], inner: ContextManager[object]
+        ) -> None:
             with outer, inner:
                 return
 
-        def manager_suppression_has_an_explicit_exit(outer, inner):
+        def manager_suppression_has_an_explicit_exit(
+            outer: ContextManager[object], inner: ContextManager[object]
+        ) -> None:
             with outer, inner:
                 return
+            return
+
+        def manager_can_suppress_explicit_raise(manager: ContextManager[object]) -> None:  # missing
+            with manager:
+                raise ValueError
+
+        def return_after_suppressed_raise(manager: ContextManager[object]) -> None:
+            with manager:
+                raise ValueError
             return
 
         def match_complete(value):
@@ -439,24 +514,41 @@ def test_suspended_bodies(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
         """
-        async def coroutine(f):  # missing
+        from collections.abc import AsyncIterable, Awaitable, Callable, Generator, Iterable, Iterator
+        from contextlib import AbstractAsyncContextManager
+
+        async def coroutine(f: Callable[[], Awaitable[object]]) -> None:  # missing
             await f()
 
-        async def returning_coroutine(f):
+        async def returning_coroutine(f: Callable[[], Awaitable[object]]) -> None:
             await f()
             return
 
-        async def async_for_can_exhaust(values):  # missing
+        async def async_for_can_exhaust(values: AsyncIterable[int]) -> int | None:  # missing
             async for value in values:
                 return value
+
+        async def async_for_else_covers_exhaustion(values: AsyncIterable[int]) -> int:
+            async for value in values:
+                if value:
+                    return value
+            else:
+                return 0
+
+        async def async_for_break_misses_else(values: AsyncIterable[int]) -> int | None:  # missing
+            async for value in values:
+                if value:
+                    break
+            else:
+                return 0
 
         def generator():  # missing
             yield 1
 
-        def delegated_generator(other):  # missing
+        def delegated_generator(other: Iterable[int]) -> Iterator[int]:  # missing
             yield from other
 
-        def returning_generator():
+        def returning_generator() -> Generator[int, None, int]:
             yield 1
             return 2
 
@@ -469,7 +561,9 @@ def test_suspended_bodies(tmp_path: Path) -> None:
                 raise ValueError
             return
 
-        async def async_context_can_suppress(manager, f):  # missing
+        async def async_context_can_suppress(  # missing
+            manager: AbstractAsyncContextManager[object], f: Callable[[], Awaitable[object]]
+        ) -> None:
             async with manager:
                 await f()
                 return
@@ -483,26 +577,29 @@ def test_exceptions_at_suspension_points(tmp_path: Path) -> None:
         tmp_path,
         """
         from asyncio import CancelledError
+        from collections.abc import Awaitable, Callable, Generator
 
-        def swallow_throw():  # missing
+        Operation = Callable[[], Awaitable[int]]
+
+        def swallow_throw() -> Generator[int, int | None, int | None]:  # missing
             try:
                 return (yield 1)
             except ValueError:
                 pass
 
-        def propagate_throw():
+        def propagate_throw() -> Generator[int, int | None, int | None]:
             try:
                 return (yield 1)
             except ValueError:
                 raise
 
-        async def swallow_cancellation(operation):  # missing
+        async def swallow_cancellation(operation: Operation) -> int | None:  # missing
             try:
                 return await operation()
             except CancelledError:
                 pass
 
-        async def propagate_cancellation(operation):
+        async def propagate_cancellation(operation: Operation) -> int:
             try:
                 return await operation()
             except CancelledError:

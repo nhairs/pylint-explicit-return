@@ -92,7 +92,11 @@ def _loop_exits(loop: nodes.For | nodes.While) -> Exit:
         body = Exit.NONE if size == 0 else _suite_exits(loop.body)
         # A nonempty literal reaches its else only if the body can advance.
         can_exhaust = not size or bool(body & (Exit.FALLTHROUGH | Exit.CONTINUE))
+        # Literal iteration itself is safe. Evaluating its items and
+        # assigning a complex target can still raise.
         exits = Exit.RAISE
+        if size == 0 or (size is not None and isinstance(loop.target, nodes.AssignName)):
+            exits = _evaluation_exits(loop.iter)
 
     # A break reaches the next statement directly. Natural exhaustion
     # reaches the same statement only after the else suite completes.
