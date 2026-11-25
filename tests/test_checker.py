@@ -414,7 +414,9 @@ def test_command_line_loads_and_suppresses_checker(
     first = tmp_path / "first.py"
     first.write_text(
         "# pylint: disable-next=missing-explicit-return\n"
-        "def suppressed():\n"
+        "def disabled_next():\n"
+        "    pass\n\n"
+        "def disabled_same_line():  # pylint: disable=missing-explicit-return\n"
         "    pass\n\n"
         "def missing():\n"
         "    pass\n",
