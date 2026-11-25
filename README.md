@@ -1,9 +1,68 @@
 # Pylint explicit return
 
-`pylint-explicit-return` is a Pylint plugin in development. It will flag
-functions that can finish without an explicit `return`, with an exemption
-for functions annotated `NoReturn`. The package currently contains the
-development and release setup.
+`pylint-explicit-return` adds the Pylint diagnostic
+`missing-explicit-return` (`C9701`). It reports functions that can reach
+the end of their body implicitly. A bare return, a return expression, or an
+escaping `raise` satisfies the rule on that path.
+
+## Use the plugin
+
+Install the package from this checkout into the environment that runs Pylint.
+The plugin requires Python 3.11 or newer and Pylint 4.1.4 or newer in the 4.x
+series.
+
+```shell
+python -m pip install .
+```
+
+Add the plugin and disable `useless-return` in your project's `pyproject.toml`.
+If those lists already exist, append these entries.
+
+```toml
+[tool.pylint.main]
+load-plugins = ["pylint_explicit_return"]
+
+[tool.pylint.messages_control]
+disable = ["useless-return"]
+```
+
+For example, the following function reports a diagnostic because
+`print(value)` can finish and execution then reaches the end of the body.
+
+```python
+def save(value: str) -> None:
+    if not value:
+        raise ValueError("A value is required")
+    print(value)
+```
+
+Add a bare `return` after `print(value)` to satisfy the rule. To suppress the
+diagnostic for a single function, put
+`# pylint: disable-next=missing-explicit-return` immediately above its
+definition. Pylint's `inconsistent-return-statements` rule can remain enabled.
+Use `return None` where a function's other branches return a value and you want
+to satisfy both rules.
+
+## How the checker handles paths
+
+The checker analyzes every function body independently, including methods,
+tests, nested functions, coroutines, and generators. A final `yield` or
+`await` can resume and fall through. Use a bare `return` to end an async
+generator explicitly. Return annotations such as `NoReturn` have no effect
+on the diagnostic.
+
+The checker skips `.pyi` files, typing overload signatures, and abstract or
+protocol methods whose bodies contain only a docstring, `pass`, or an
+ellipsis. It checks executable implementations and ordinary placeholder
+functions.
+
+The analysis is conservative about dynamic Python behavior. It treats
+unknown iterables as potentially empty, considers exceptions from expressions
+and possible handler matches, and assumes a context manager may suppress an
+exception. It can therefore report fallthrough when a handler is unreachable
+or a context manager never suppresses exceptions. Calls are assumed able to
+return, and `match` exhaustiveness depends on an unguarded irrefutable
+pattern or a subsequent exit.
 
 ## Develop
 
