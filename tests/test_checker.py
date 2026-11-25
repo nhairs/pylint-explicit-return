@@ -443,7 +443,13 @@ def test_command_line_loads_and_suppresses_checker(
     if not enabled:
         command.append(f"--disable={_MESSAGE}")
     result = subprocess.run(command, capture_output=True, text=True, check=False)
-    assert result.returncode == (24 if enabled else 8), (result.stderr, result.stdout)
+    if (
+        jobs == 2
+        and sys.version_info >= (3, 15)
+        and "AttributeError: 'code' object has no attribute 'co_lnotab'" in result.stderr
+    ):
+        pytest.xfail("Pylint's dill dependency cannot serialize workers on this Python version")
+    assert result.returncode == (24 if enabled else 8), f"{result.stderr}\n{result.stdout}"
     messages = json.loads(result.stdout)
     actual = sorted((message["symbol"], message["obj"]) for message in messages)
     expected = [("inconsistent-return-statements", "mixed")]

@@ -26,6 +26,9 @@ load-plugins = ["pylint_explicit_return"]
 disable = ["useless-return"]
 ```
 
+If parallel Pylint on Python 3.15 fails with a missing `co_lnotab` attribute
+from `dill`, run Pylint with `-j 1`.
+
 For example, the following function reports a diagnostic because
 `print(value)` can finish and execution then reaches the end of the body.
 
