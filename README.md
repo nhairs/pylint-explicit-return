@@ -1,7 +1,7 @@
 # Pylint explicit return
 
 `pylint-explicit-return` adds the Pylint diagnostic
-`missing-explicit-return` (`C9701`). It reports functions that can reach
+`missing-explicit-return` (`C8716`). It reports functions that can reach
 the end of their body implicitly. A bare return, a return expression, or an
 escaping `raise` satisfies the rule on that path.
 
@@ -26,9 +26,6 @@ load-plugins = ["pylint_explicit_return"]
 disable = ["useless-return"]
 ```
 
-If parallel Pylint on Python 3.15 fails with a missing `co_lnotab` attribute
-from `dill`, run Pylint with `-j 1`.
-
 For example, the following function reports a diagnostic because
 `print(value)` can finish and execution then reaches the end of the body.
 
@@ -52,7 +49,14 @@ The checker analyzes every function body independently, including methods,
 tests, nested functions, coroutines, and generators. A final `yield` or
 `await` can resume and fall through. Use a bare `return` to end an async
 generator explicitly. Return annotations such as `NoReturn` have no effect
-on the diagnostic.
+on the diagnostic. For example, the bare return supplies an explicit exit
+when this async generator resumes after yielding its last item.
+
+```python
+async def numbers():
+    yield 1
+    return
+```
 
 The checker skips `.pyi` files, typing overload signatures, and abstract or
 protocol methods whose bodies contain only a docstring, `pass`, or an
@@ -67,6 +71,19 @@ or a context manager never suppresses exceptions. Calls are assumed able to
 return, and `match` exhaustiveness depends on an unguarded irrefutable
 pattern or a subsequent exit.
 
+For example, the checker can flag the following function. It considers a
+path where the manager suppresses an exception raised while evaluating the
+return expression. Python's `nullcontext()` propagates the exception.
+
+```python
+from contextlib import nullcontext
+
+
+def item_count(items: list[str]) -> int:
+    with nullcontext():
+        return len(items)
+```
+
 ## Develop
 
 Use Python 3.11 or newer and uv. Run the checks with tox and tox-uv.
@@ -77,6 +94,10 @@ uvx --with tox-uv tox -e lint,py313
 
 Run `uvx --with tox-uv tox` to use the full interpreter matrix, or run `uvx --with tox-uv tox -e format`
 to format the code.
+
+With CPython 3.15 and dill 0.4.1, Pylint can fail to start parallel workers
+because dill accesses the removed `co_lnotab` attribute. The failure also
+occurs with stock Pylint. Use `-j 1` with that combination.
 
 ## Release
 

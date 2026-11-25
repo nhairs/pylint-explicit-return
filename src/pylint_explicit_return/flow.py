@@ -1,4 +1,10 @@
-"""Track the ways execution can leave a suite within a single function."""
+"""Track control flow through the statement suites in one function.
+
+Each suite yields a bitset of possible exits. FALLTHROUGH advances to the
+next statement in the enclosing suite. RETURN and RAISE can leave the
+function, while loops consume BREAK and CONTINUE. A suite with no possible
+exits can run indefinitely.
+"""
 
 from collections.abc import Sequence
 from enum import IntFlag, auto
@@ -23,6 +29,7 @@ def can_fall_through(body: Sequence[nodes.NodeNG]) -> bool:
 
 
 def _suite_exits(body: Sequence[nodes.NodeNG]) -> Exit:
+    """Advance fallthrough paths and retain transfers from earlier statements."""
     exits = Exit.FALLTHROUGH
     for statement in body:
         if not exits & Exit.FALLTHROUGH:
@@ -32,7 +39,7 @@ def _suite_exits(body: Sequence[nodes.NodeNG]) -> Exit:
 
 
 def _evaluation_exits(expression: nodes.NodeNG | None) -> Exit:
-    """Account for exceptions while evaluating an expression."""
+    """Return the possible exceptional exits from expression evaluation."""
     match expression:
         case None | nodes.Const():
             return Exit.NONE
@@ -43,12 +50,14 @@ def _evaluation_exits(expression: nodes.NodeNG | None) -> Exit:
 
 
 def _truth_value(test: nodes.NodeNG) -> bool | None:
+    """Evaluate a literal test and leave runtime truth values unknown."""
     if isinstance(test, nodes.Const):
         return bool(test.value)
     return None
 
 
 def _if_exits(statement: nodes.If) -> Exit:
+    """Combine exits from the arms that the condition can select."""
     truth = _truth_value(statement.test)
     exits = _evaluation_exits(statement.test)
     if truth is not False:
@@ -72,6 +81,7 @@ def _literal_iterable_size(loop: nodes.For) -> int | None:
 
 
 def _loop_exits(loop: nodes.For | nodes.While) -> Exit:
+    """Consume this loop's break and continue and handle its else suite."""
     if isinstance(loop, nodes.While):
         truth = _truth_value(loop.test)
         body = Exit.NONE if truth is False else _suite_exits(loop.body)
@@ -84,6 +94,8 @@ def _loop_exits(loop: nodes.For | nodes.While) -> Exit:
         can_exhaust = not size or bool(body & (Exit.FALLTHROUGH | Exit.CONTINUE))
         exits = Exit.RAISE
 
+    # A break reaches the next statement directly. Natural exhaustion
+    # reaches the same statement only after the else suite completes.
     exits |= body & (Exit.RETURN | Exit.RAISE)
     if body & Exit.BREAK:
         exits |= Exit.FALLTHROUGH
@@ -93,6 +105,7 @@ def _loop_exits(loop: nodes.For | nodes.While) -> Exit:
 
 
 def _try_exits(statement: nodes.Try | nodes.TryStar) -> Exit:
+    """Analyze handlers and else, then apply finally to every pending exit."""
     body = _suite_exits(statement.body)
     exits = body & ~Exit.FALLTHROUGH
     if body & Exit.RAISE:
@@ -114,6 +127,7 @@ def _try_exits(statement: nodes.Try | nodes.TryStar) -> Exit:
 
 
 def _with_exits(statement: nodes.With) -> Exit:
+    """Allow managers to raise during setup or cleanup and suppress exceptions."""
     exits = _suite_exits(statement.body)
     # Context managers can suppress exceptions from the body, an assignment to
     # a complex target, or entry/exit of a manager nested inside them.
@@ -128,6 +142,7 @@ def _with_exits(statement: nodes.With) -> Exit:
 
 
 def _irrefutable(pattern: nodes.NodeNG) -> bool:
+    """Recognize patterns that match any value, independently of the guard."""
     match pattern:
         case nodes.MatchAs(pattern=subpattern):
             return subpattern is None or _irrefutable(subpattern)
@@ -138,6 +153,7 @@ def _irrefutable(pattern: nodes.NodeNG) -> bool:
 
 
 def _match_exits(statement: nodes.Match) -> Exit:
+    """Combine case exits and retain a path for a potentially unmatched value."""
     exits = _evaluation_exits(statement.subject)
     for case in statement.cases:
         irrefutable = _irrefutable(case.pattern)
@@ -153,6 +169,7 @@ def _match_exits(statement: nodes.Match) -> Exit:
 
 
 def _statement_exits(statement: nodes.NodeNG) -> Exit:
+    """Compute transfers for one statement without visiting nested definitions."""
     # pylint: disable=too-many-return-statements
     match statement:
         case nodes.Return(value=value):

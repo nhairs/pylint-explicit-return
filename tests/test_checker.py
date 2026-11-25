@@ -455,5 +455,8 @@ def test_command_line_loads_and_suppresses_checker(
     expected = [("inconsistent-return-statements", "mixed")]
     if enabled:
         expected.append((_MESSAGE, "missing"))
+        assert [message["message-id"] for message in messages if message["symbol"] == _MESSAGE] == [
+            "C8716"
+        ]
     assert actual == expected, result.stderr
     return

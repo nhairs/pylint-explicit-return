@@ -5,8 +5,8 @@ from pylint.checkers import BaseChecker
 from pylint.checkers.utils import only_required_for_messages
 from pylint.lint import PyLinter
 
-from ._declarations import is_declaration
-from ._flow import can_fall_through
+from .declarations import is_declaration
+from .flow import can_fall_through
 
 
 class ExplicitReturnChecker(BaseChecker):
@@ -14,7 +14,8 @@ class ExplicitReturnChecker(BaseChecker):
 
     name = "explicit-return"
     msgs = {
-        "C9701": (
+        # 51–99 is Pylint's range for custom checker IDs.
+        "C8716": (
             "Function %r can reach the end without an explicit return",
             "missing-explicit-return",
             "Used when a path falls through the end of a function body. "
