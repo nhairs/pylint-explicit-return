@@ -63,6 +63,12 @@ def test_function_scopes(tmp_path: Path) -> None:
                 pass
             return
 
+        def make_callback(flag):
+            def callback():  # missing
+                if flag:
+                    return 1
+            return callback
+
         class Example:
             def __init__(self) -> None:  # missing
                 self.value = 1
@@ -91,6 +97,20 @@ def test_return_and_raise_paths(tmp_path: Path) -> None:
                 return 1
             else:
                 raise ValueError("bad input")
+
+        def partial_elif(value):  # missing
+            if value == 1:
+                return 1
+            elif value == 2:
+                return 2
+
+        def complete_elif(value):
+            if value == 1:
+                return 1
+            elif value == 2:
+                return 2
+            else:
+                raise ValueError(value)
 
         def early_return(condition):
             if condition:
@@ -163,6 +183,20 @@ def test_loops(tmp_path: Path) -> None:
                     break
             else:
                 return None
+
+        def while_else_covers_exhaustion(items):
+            while items:
+                if items.pop():
+                    return True
+            else:
+                return False
+
+        def while_else_missed_on_break(items):  # missing
+            while items:
+                if items.pop():
+                    break
+            else:
+                return False
         """,
     )
     return
@@ -224,6 +258,18 @@ def test_exception_paths(tmp_path: Path) -> None:
                 action()
             finally:
                 return
+
+        def finally_raises_after_return():
+            try:
+                return 1
+            finally:
+                raise ValueError
+
+        def finally_raises_after_fallthrough():
+            try:
+                pass
+            finally:
+                raise ValueError
 
         def finally_break_overrides_return():  # missing
             while True:
@@ -335,6 +381,70 @@ def test_suspended_bodies(tmp_path: Path) -> None:
     return
 
 
+def test_exceptions_at_suspension_points(tmp_path: Path) -> None:
+    _check_source(
+        tmp_path,
+        """
+        from asyncio import CancelledError
+
+        def swallow_throw():  # missing
+            try:
+                return (yield 1)
+            except ValueError:
+                pass
+
+        def propagate_throw():
+            try:
+                return (yield 1)
+            except ValueError:
+                raise
+
+        async def swallow_cancellation(operation):  # missing
+            try:
+                return await operation()
+            except CancelledError:
+                pass
+
+        async def propagate_cancellation(operation):
+            try:
+                return await operation()
+            except CancelledError:
+                raise
+        """,
+    )
+    return
+
+
+def test_decorated_function_bodies(tmp_path: Path) -> None:
+    _check_source(
+        tmp_path,
+        """
+        from contextlib import contextmanager
+        from dataclasses import dataclass
+
+        @contextmanager
+        def manager():  # missing
+            yield 1
+
+        @dataclass
+        class Record:
+            value: int
+
+            def __post_init__(self):  # missing
+                self.value += 1
+
+            @property
+            def doubled(self):
+                return self.value * 2
+
+            @doubled.setter
+            def doubled(self, value):  # missing
+                self.value = value // 2
+        """,
+    )
+    return
+
+
 def test_declaration_and_executable_bodies(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
@@ -371,6 +481,16 @@ def test_declaration_and_executable_bodies(tmp_path: Path) -> None:
         class Concrete:
             def placeholder(self):  # missing
                 ...
+
+        @abstract
+        def standalone():  # missing
+            ...
+
+        def factory():
+            @abstract
+            def closure():  # missing
+                pass
+            return closure
 
         def overload(function):
             return function

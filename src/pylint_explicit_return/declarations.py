@@ -63,10 +63,8 @@ def _qualified_name(
     return None
 
 
-def _is_protocol(cls: nodes.NodeNG) -> bool:
+def _is_protocol(cls: nodes.ClassDef) -> bool:
     """Recognize a class that declares typing.Protocol as a base."""
-    if not isinstance(cls, nodes.ClassDef):
-        return False
     for base in cls.bases:
         expression = base.value if isinstance(base, nodes.Subscript) else base
         if _qualified_name(expression, cls) in _PROTOCOLS:
@@ -94,4 +92,7 @@ def is_declaration(function: nodes.FunctionDef) -> bool:
                 continue
         return False
 
-    return bool(names & _ABSTRACT_DECORATORS) or _is_protocol(function.parent.scope())
+    scope = function.parent.scope()
+    return isinstance(scope, nodes.ClassDef) and (
+        bool(names & _ABSTRACT_DECORATORS) or _is_protocol(scope)
+    )
