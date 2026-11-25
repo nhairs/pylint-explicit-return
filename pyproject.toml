@@ -11,7 +11,7 @@ authors = [{name = "Nicholas Hairs", email = "info+pylint-explicit-return@nichol
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENCE"]
-dependencies = ["pylint>=4.1.4,<5"]
+dependencies = ["astroid>=4.3.4,<5", "pylint>=4.1.4,<5"]
 
 [project.urls]
 GitHub = "https://github.com/nhairs/pylint-explicit-return"

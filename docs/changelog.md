@@ -5,3 +5,4 @@
 ### Added
 
 - Set up the package layout, tox-uv checks, and nopt release workflow.
+- Add the `missing-explicit-return` checker for reachable function fallthrough.
