@@ -169,6 +169,20 @@ def test_loops(tmp_path: Path) -> None:
                 for _ in range(2):
                     break
 
+        def break_in_inner_else_exits_outer_loop():  # missing
+            while True:
+                for _ in ():
+                    return
+                else:
+                    break
+
+        def continue_in_inner_else_repeats_outer_loop():
+            while True:
+                for _ in ():
+                    return
+                else:
+                    continue
+
         def loop_else_covers_exhaustion(items):
             for item in items:
                 if item:
@@ -295,6 +309,45 @@ def test_exception_paths(tmp_path: Path) -> None:
     return
 
 
+def test_exception_during_handler_selection(tmp_path: Path) -> None:
+    _check_source(
+        tmp_path,
+        """
+        def broken_selector_can_fall_through(exception_type):  # missing
+            try:
+                try:
+                    raise ValueError
+                except exception_type():
+                    return
+                except:
+                    return
+            except LookupError:
+                pass
+
+        def broken_selector_can_escape(exception_type):
+            try:
+                try:
+                    raise ValueError
+                except exception_type():
+                    return
+                except:
+                    return
+            except LookupError:
+                raise
+
+        def bare_handler_never_selects_a_type():
+            try:
+                try:
+                    raise ValueError
+                except:
+                    return
+            except LookupError:
+                pass
+        """,
+    )
+    return
+
+
 def test_with_and_match(tmp_path: Path) -> None:
     _check_source(
         tmp_path,
@@ -311,6 +364,15 @@ def test_with_and_match(tmp_path: Path) -> None:
         def suppression_can_skip_body_assignment(manager):  # missing
             with manager as (first, second):
                 return
+
+        def outer_manager_can_suppress_inner_entry(outer, inner):  # missing
+            with outer, inner:
+                return
+
+        def manager_suppression_has_an_explicit_exit(outer, inner):
+            with outer, inner:
+                return
+            return
 
         def match_complete(value):
             match value:
@@ -333,6 +395,41 @@ def test_with_and_match(tmp_path: Path) -> None:
             match value:
                 case 1 | _:
                     return
+        """,
+    )
+    return
+
+
+def test_exception_during_pattern_matching(tmp_path: Path) -> None:
+    _check_source(
+        tmp_path,
+        """
+        class Token:
+            pass
+
+        def value_pattern_can_raise():  # missing
+            try:
+                match 1:
+                    case Token.missing | _:
+                        return
+            except AttributeError:
+                pass
+
+        def captured_alternative_can_raise():  # missing
+            try:
+                match 1:
+                    case (Token.missing | _) as captured:
+                        return
+            except AttributeError:
+                pass
+
+        def wildcard_never_looks_up_an_attribute():
+            try:
+                match 1:
+                    case _:
+                        return
+            except AttributeError:
+                pass
         """,
     )
     return

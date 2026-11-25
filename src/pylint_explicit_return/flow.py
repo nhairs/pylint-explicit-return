@@ -109,9 +109,10 @@ def _try_exits(statement: nodes.Try | nodes.TryStar) -> Exit:
     body = _suite_exits(statement.body)
     exits = body & ~Exit.FALLTHROUGH
     if body & Exit.RAISE:
-        # Handler type matching is conservative. A bare except catches every
-        # exception from the try body; exceptions from else still propagate.
-        if statement.handlers and statement.handlers[-1].type is None:
+        # A leading bare handler catches every body exception. A typed
+        # handler's selector can itself raise before a later bare handler
+        # has a chance to match.
+        if statement.handlers and statement.handlers[0].type is None:
             exits &= ~Exit.RAISE
         for handler in statement.handlers:
             exits |= _suite_exits(handler.body)
@@ -141,29 +142,33 @@ def _with_exits(statement: nodes.With) -> Exit:
     return exits | Exit.RAISE
 
 
-def _irrefutable(pattern: nodes.NodeNG) -> bool:
-    """Recognize patterns that match any value, independently of the guard."""
+def _pattern_exits(pattern: nodes.NodeNG) -> Exit:
+    """Track possible mismatch (fallthrough) and exceptions during matching."""
     match pattern:
         case nodes.MatchAs(pattern=subpattern):
-            return subpattern is None or _irrefutable(subpattern)
+            return Exit.NONE if subpattern is None else _pattern_exits(subpattern)
         case nodes.MatchOr(patterns=alternatives):
-            return any(_irrefutable(alternative) for alternative in alternatives)
+            exits = Exit.FALLTHROUGH
+            for alternative in alternatives:
+                exits = (exits & ~Exit.FALLTHROUGH) | _pattern_exits(alternative)
+                if not exits & Exit.FALLTHROUGH:
+                    break
+            return exits
         case _:
-            return False
+            return Exit.FALLTHROUGH | Exit.RAISE
 
 
 def _match_exits(statement: nodes.Match) -> Exit:
     """Combine case exits and retain a path for a potentially unmatched value."""
     exits = _evaluation_exits(statement.subject)
     for case in statement.cases:
-        irrefutable = _irrefutable(case.pattern)
-        if not irrefutable:
-            exits |= Exit.RAISE
+        pattern = _pattern_exits(case.pattern)
+        exits |= pattern & Exit.RAISE
         truth = True if case.guard is None else _truth_value(case.guard)
         exits |= _evaluation_exits(case.guard)
         if truth is not False:
             exits |= _suite_exits(case.body)
-        if irrefutable and truth is True:
+        if not pattern & Exit.FALLTHROUGH and truth is True:
             return exits
     return exits | Exit.FALLTHROUGH
 
