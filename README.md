@@ -7,12 +7,12 @@ escaping `raise` satisfies the rule on that path.
 
 ## Use the plugin
 
-Install the package from this checkout into the environment that runs Pylint.
+Install the package into the environment that runs Pylint.
 The plugin requires Python 3.11 or newer and Pylint 4.1.4 or newer in the 4.x
 series.
 
 ```shell
-python -m pip install .
+python -m pip install pylint-explicit-return
 ```
 
 Add the plugin and disable `useless-return` in your project's `pyproject.toml`.
