@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pylint-explicit-return"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "A Pylint plugin for requiring explicit returns"
 requires-python = ">=3.11"
 authors = [{name = "Nicholas Hairs", email = "info+pylint-explicit-return@nicholashairs.com"}]
